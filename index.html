@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFL Engine</title>
+<style>
+  :root{
+    --bg:#0f1115;--surface:#181b20;--surface2:#1f232a;--border:#272c34;
+    --ink:#e6e8ec;--muted:#9aa0a8;--faint:#5b626c;
+    --home:#4f86c6;--away:#8a93a0;--over:#e8950c;--under:#0ca678;
+    --value:#3fb950;--open:#2bb7c4;--known:#d4554e;
+    --aplus:#3fb950;--accent:#5aa6ff;--bartxt:#0f1115;
+    --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    --serif:Georgia,"Times New Roman",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding-bottom:60px}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 14px}
+  a{color:var(--accent);text-decoration:none;cursor:pointer}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .mono{font-family:var(--mono)}
+  /* class-based i18n */
+  html[lang=en] .l-he{display:none} html[lang=he] .l-en{display:none}
+  html[lang=he] body,html[lang=he] .wrap{direction:rtl}
+  html[lang=he]{text-align:right}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .brand h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .brand .src{font-size:11px;color:var(--faint);font-family:var(--mono)}
+  .ctrls{display:flex;gap:7px;align-items:center}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:5px 10px;text-align:center}
+  .kpi b{display:block;font-size:15px;font-weight:800;font-family:var(--mono)}
+  .kpi span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .btn{background:var(--surface);border:1px solid var(--border);color:var(--ink);border-radius:8px;
+    padding:6px 11px;font-size:13px;cursor:pointer}
+  .btn:hover{border-color:var(--faint)}
+  .hint{font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:4px 2px;margin-bottom:12px}
+
+  .banner{background:linear-gradient(180deg,var(--surface2),var(--surface));border:1px solid var(--border);
+    border-radius:12px;padding:13px 16px;margin-bottom:14px;display:flex;justify-content:space-between;
+    align-items:center;gap:12px;flex-wrap:wrap}
+  .banner .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .banner .big{font-size:17px;font-weight:800;margin-top:1px}
+  .banner .when{font-family:var(--mono);font-size:13px;color:var(--accent)}
+
+  .datebar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .chip{background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:20px;
+    padding:5px 12px;font-size:12.5px;cursor:pointer}
+  .chip.on{background:var(--ink);color:var(--bg);font-weight:700;border-color:var(--ink)}
+  input[type=date]{background:var(--surface);border:1px solid var(--border);color:var(--ink);
+    border-radius:8px;padding:5px 9px;font-size:12.5px;color-scheme:dark}
+
+  .hero-lab{font-size:11.5px;color:var(--aplus);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    margin:4px 2px 7px;display:flex;align-items:center;gap:6px}
+  .hero-lab::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--aplus)}
+  .silent{font-size:11.5px;color:var(--faint);font-style:italic;margin:10px 2px 4px}
+
+  .game{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 15px;
+    margin-bottom:9px;opacity:.6;transition:opacity .15s}
+  .game.ap{opacity:1;border-color:var(--aplus)}
+  .game .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
+  .game .match{font-weight:700;font-size:15px}
+  .game .match .at{color:var(--faint);font-weight:400;margin:0 5px}
+  .game .when{font-size:11px;color:var(--faint);font-family:var(--mono)}
+  .badge{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}
+  .badge.ap{background:var(--aplus);color:#04140a}
+  .badge.wind{background:#13202b;color:var(--over);border:1px solid #2b3a4a}
+  .barblock{margin-top:7px}
+  .barrow{display:grid;grid-template-columns:54px 1fr;align-items:center;gap:9px;margin-bottom:5px}
+  .barrow .rl{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;text-align:end}
+  .bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:#0c0e12;direction:ltr}
+  .bar .seg{height:100%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+    color:var(--bartxt);white-space:nowrap;min-width:0}
+  .bar.market .seg{box-shadow:inset 0 0 0 1.5px rgba(154,160,170,.5)}
+  .nomkt{font-size:11px;color:var(--faint);font-style:italic;padding:3px 0;height:22px;display:flex;align-items:center}
+  .seg.home{background:var(--home)}.seg.away{background:var(--away)}
+  .seg.over{background:var(--over)}.seg.under{background:var(--under)}
+  .zone{font-size:11px;margin-top:5px;font-family:var(--mono)}
+  .zone .tag{font-weight:700;padding:1px 7px;border-radius:5px;margin-inline-start:5px}
+  .zone.value .tag{background:#11240f;color:var(--value);border:1px solid #1f4a30}
+  .zone.open .tag{background:#0c2226;color:var(--open);border:1px solid #14454c}
+  .zone.none .tag{background:#1c1f25;color:var(--faint);border:1px solid var(--border)}
+  .totlab{font-size:10.5px;color:var(--muted);margin:11px 0 2px;text-transform:uppercase;letter-spacing:.04em}
+  .totlab b{color:var(--ink);font-family:var(--mono)}
+
+  section{margin-top:22px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:10px;font-weight:700}
+  .segs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .seg-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:20px;
+    padding:6px 13px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .seg-btn.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+  .rlist{display:flex;flex-direction:column;gap:5px}
+  .row{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);
+    border-radius:9px;padding:8px 12px}
+  .row .n{font-family:var(--mono);font-size:12px;color:var(--faint);width:20px}
+  .row .t{font-weight:700;flex:1}
+  .row .v{font-family:var(--mono);font-size:13px}
+  .tier{font-size:9.5px;padding:2px 8px;border-radius:20px;font-weight:700;text-transform:uppercase}
+  .tier.Elite{background:#13261a;color:#5ad27e}.tier.Strong{background:#16212e;color:#6fb0f0}
+  .tier.Solid{background:#23262c;color:#b8bec8}.tier.Weak{background:#2a241a;color:#cba35e}
+  .tier.Bottom{background:#2a1a1c;color:#d98a8a}
+  .cube{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 15px;margin-bottom:11px}
+  .cube-h{font-weight:800;font-size:15px;margin-bottom:3px}
+  .cube-x{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.45}
+  .tier-group{margin-bottom:7px}
+  .tier-lab{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);
+    margin:0 2px 3px;display:flex;align-items:center;gap:6px}
+  .tier-lab::before{content:"";width:7px;height:7px;border-radius:2px;background:currentColor}
+  .tier-lab.Elite{color:#5ad27e}.tier-lab.Strong{color:#6fb0f0}.tier-lab.Solid{color:#b8bec8}
+  .tier-lab.Weak{color:#cba35e}.tier-lab.Bottom{color:#d98a8a}
+  .tier-rows{display:flex;flex-direction:column;gap:3px}
+  .crow{display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:7px;padding:6px 11px}
+  .crow .n{font-family:var(--mono);font-size:11px;color:var(--faint);width:20px}
+  .crow .t{font-weight:600;flex:1;font-size:13px}
+  .crow .v{font-family:var(--mono);font-size:13px}
+  .up{color:var(--value)}.dn{color:#d98a8a}
+
+  .note{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:13px 15px;
+    margin-top:20px;font-size:12.5px;color:var(--muted)}
+  .note b{color:var(--ink)}
+  footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;color:var(--faint);
+    text-align:center;line-height:1.8}
+  footer a{color:var(--accent);text-decoration:underline}
+  .age{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:5px;
+    padding:0 6px;font-weight:800;color:var(--ink);margin-inline-end:4px}
+
+  /* modals */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;
+    justify-content:center;z-index:50;padding:30px 14px;overflow-y:auto}
+  .modal.open{display:flex}
+  .sheet{background:var(--bg);border:1px solid var(--border);border-radius:14px;max-width:640px;width:100%;
+    padding:22px 22px 26px}
+  .sheet .x{float:inline-end;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1}
+  .sheet h3{font-family:var(--serif);font-size:20px;margin-bottom:14px}
+  .sec{margin-bottom:16px}
+  .sec .num{font-family:var(--serif);font-size:15px;font-weight:700;color:var(--ink);display:flex;gap:8px;align-items:baseline}
+  .sec .num i{color:var(--accent);font-style:normal;font-family:var(--mono);font-size:13px}
+  .sec p{font-size:13px;color:var(--muted);margin-top:5px}
+  .excard{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-top:8px;font-size:12px}
+  .sheet h4{font-size:14px;margin:14px 0 5px}
+  .sheet .body p{font-size:13px;color:var(--muted);margin-bottom:9px}
+
+  .toTop{position:fixed;bottom:18px;inset-inline-end:18px;background:var(--surface2);border:1px solid var(--border);
+    color:var(--ink);border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:17px;display:none}
+  .toTop.show{display:block}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><h1><span class="l-en">NFL Engine</span><span class="l-he">מנוע NFL</span></h1><div class="src" id="src"></div></div>
+    <div class="ctrls">
+      <div class="kpi"><b id="accAll"></b><span><span class="l-en">overall</span><span class="l-he">כללי</span></span></div>
+      <div class="kpi"><b id="accAp"></b><span><span class="l-en">A+ slice</span><span class="l-he">פרוסת A+</span></span></div>
+      <button class="btn" id="lang" aria-label="Toggle language">עברית</button>
+    </div>
+  </header>
+  <button class="hint" id="howtoBtn" aria-label="How to read this page">
+    <span class="l-en">How to read this page →</span><span class="l-he">איך לקרוא את הדף →</span></button>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="datebar">
+    <button class="chip on" data-d="all"><span class="l-en">Week 1</span><span class="l-he">שבוע 1</span></button>
+    <input type="date" id="datePick" aria-label="Pick a date">
+    <button class="chip" id="todayChip"><span class="l-en">Today</span><span class="l-he">היום</span></button>
+  </div>
+
+  <div id="hero"></div>
+
+  <section>
+    <h2><span class="l-en">This week</span><span class="l-he">השבוע</span></h2>
+    <div id="slate"></div>
+  </section>
+
+  <section>
+    <button class="btn" id="rankToggle" aria-expanded="false" aria-label="Toggle rankings">
+      <span class="l-en">Rankings <span aria-hidden="true">▾</span></span><span class="l-he">דירוגים <span aria-hidden="true">▾</span></span></button>
+    <div id="rankWrap" class="hide" style="margin-top:12px">
+      <div id="cubes"></div>
+    </div>
+  </section>
+
+  <div class="note" id="caveat"></div>
+
+  <footer>
+    <p><span class="age">18+</span>
+      <span class="l-en">For information and entertainment only · Not betting advice · a prediction is not a profit. <a id="discBtn2">Disclaimer &amp; Privacy ⟶</a></span>
+      <span class="l-he">למידע ובידור בלבד · אינו ייעוץ-הימורים · ניבוי אינו רווח. <a id="discBtn">הצהרה ופרטיות ⟶</a></span></p>
+  </footer>
+</div>
+
+<!-- guide modal -->
+<div class="modal" id="guideModal" role="dialog" aria-modal="true" aria-label="How to read this page">
+  <div class="sheet">
+    <button class="x" id="guideX" aria-label="Close">&times;</button>
+    <h3><span class="l-en">How to read this page</span><span class="l-he">איך לקרוא את הדף</span></h3>
+    <div id="guideBody"></div>
+  </div>
+</div>
+<!-- disclaimer modal -->
+<div class="modal" id="discModal" role="dialog" aria-modal="true" aria-label="Disclaimer and Privacy">
+  <div class="sheet">
+    <button class="x" id="discX" aria-label="Close">&times;</button>
+    <h3><span class="l-en">Disclaimer &amp; Privacy</span><span class="l-he">הצהרה ופרטיות</span></h3>
+    <div class="body">
+      <p><span class="l-en">For information and entertainment only. The probabilities are estimates, not certainties. Any decision is your sole responsibility. We are not a bookmaker, operator, or financial advisor; a prediction is not a profit.</span>
+        <span class="l-he">למטרות מידע ובידור בלבד. ההסתברויות הן אומדנים, לא ודאויות. כל החלטה היא באחריותך הבלעדית. איננו מפעיל-הימורים, ספר או יועץ-פיננסי; ניבוי אינו רווח.</span></p>
+      <p><span class="l-en">If gambling is harming you or someone you know: US: NCPG — <a href="https://www.ncpgambling.org" target="_blank" rel="noopener">ncpgambling.org</a> · 1-800-MY-RESET. UK/international: GamCare — <a href="https://www.gamcare.org.uk" target="_blank" rel="noopener">gamcare.org.uk</a> · 0808 8020 133.</span>
+        <span class="l-he">אם ההימור פוגע בך או במישהו: ארה"ב: NCPG — <a href="https://www.ncpgambling.org" target="_blank" rel="noopener">ncpgambling.org</a> · 1-800-MY-RESET. בריטניה/בינלאומי: GamCare — <a href="https://www.gamcare.org.uk" target="_blank" rel="noopener">gamcare.org.uk</a> · 0808 8020 133.</span></p>
+      <h4><span class="l-en">Privacy</span><span class="l-he">פרטיות</span></h4>
+      <p><span class="l-en">Analytics via GoatCounter — no cookies and no personally identifying data. No individual tracking. Hosted on GitHub Pages, which may record technical data (such as your IP) in its server logs. Contact: qmanagement613@gmail.com.</span>
+        <span class="l-he">אנליטיקס דרך GoatCounter — ללא עוגיות וללא מידע-מזהה. אין מעקב-אישי. מתארח ב-GitHub Pages, שעשוי לרשום נתונים-טכניים (כגון כתובת-IP) בלוגים. יצירת-קשר: qmanagement613@gmail.com.</span></p>
+    </div>
+  </div>
+</div>
+
+<button class="toTop" id="toTop" aria-label="Back to top">&#8593;</button>
+
+<script>
+/* ===DATA=== */
+const DATA = {"meta": {"accuracy_overall": 64.6, "accuracy_aplus": 78.4, "aplus_cover": 12, "source": "nflverse/nfldata", "generated": "2026-06-30", "season": 2026, "n_validation": 3816}, "state": "preseason", "next": {"date": "2026-09-09", "week": 1}, "week": {"number": 1, "games": [{"away": "NE", "home": "SEA", "date": "2026-09-09", "time": "20:20", "p_home": 0.652, "favorite": "SEA", "fav_prob": 0.652, "confidence": 0.152, "aplus": false, "mkt_home": 0.637, "win_gap": 0.015, "win_zone": "none", "total_line": 44.5, "exp_total": 41.8, "e_over": 0.421, "m_over": 0.5, "tot_gap": -0.079, "tot_zone": "value", "wind_under": false, "roof": "outdoors"}, {"away": "SF", "home": "LA", "date": "2026-09-10", "time": "20:35", "p_home": 0.568, "favorite": "LA", "fav_prob": 0.568, "confidence": 0.068, "aplus": false, "mkt_home": 0.609, "win_gap": -0.041, "win_zone": "value", "total_line": 48.5, "exp_total": 55.1, "e_over": 0.685, "m_over": 0.5, "tot_gap": 0.185, "tot_zone": "open", "wind_under": false, "roof": "dome"}, {"away": "CHI", "home": "CAR", "date": "2026-09-13", "time": "13:00", "p_home": 0.43, "favorite": "CHI", "fav_prob": 0.57, "confidence": 0.07, "aplus": false, "mkt_home": 0.449, "win_gap": -0.018, "win_zone": "none", "total_line": 44.5, "exp_total": 43.8, "e_over": 0.479, "m_over": 0.5, "tot_gap": -0.021, "tot_zone": "none", "wind_under": false, "roof": "outdoors"}, {"away": "TB", "home": "CIN", "date": "2026-09-13", "time": "13:00", "p_home": 0.552, "favorite": "CIN", "fav_prob": 0.552, "confidence": 0.052, "aplus": false, "mkt_home": 0.637, "win_gap": -0.085, "win_zone": "value", "total_line": 50.5, "exp_total": 52.8, "e_over": 0.566, "m_over": 0.511, "tot_gap": 0.055, "tot_zone": "value", "wind_under": false, "roof": "outdoors"}, {"away": "NO", "home": "DET", "date": "2026-09-13", "time": "13:00", "p_home": 0.707, "favorite": "DET", "fav_prob": 0.707, "confidence": 0.207, "aplus": false, "mkt_home": 0.734, "win_gap": -0.027, "win_zone": "none", "total_line": 48.5, "exp_total": 46.9, "e_over": 0.455, "m_over": 0.511, "tot_gap": -0.056, "tot_zone": "value", "wind_under": false, "roof": "dome"}, {"away": "BUF", "home": "HOU", "date": "2026-09-13", "time": "13:00", "p_home": 0.547, "favorite": "HOU", "fav_prob": 0.547, "confidence": 0.047, "aplus": false, "mkt_home": 0.489, "win_gap": 0.058, "win_zone": "value", "total_line": 45.5, "exp_total": 47.8, "e_over": 0.566, "m_over": 0.489, "tot_gap": 0.077, "tot_zone": "value", "wind_under": false, "roof": ""}, {"away": "BAL", "home": "IND", "date": "2026-09-13", "time": "13:00", "p_home": 0.455, "favorite": "BAL", "fav_prob": 0.545, "confidence": 0.045, "aplus": false, "mkt_home": 0.369, "win_gap": 0.086, "win_zone": "value", "total_line": 49.5, "exp_total": 53.2, "e_over": 0.607, "m_over": 0.5, "tot_gap": 0.107, "tot_zone": "open", "wind_under": false, "roof": ""}, {"away": "CLE", "home": "JAX", "date": "2026-09-13", "time": "13:00", "p_home": 0.725, "favorite": "JAX", "fav_prob": 0.725, "confidence": 0.225, "aplus": true, "mkt_home": 0.734, "win_gap": -0.008, "win_zone": "none", "total_line": 40.5, "exp_total": 39.6, "e_over": 0.473, "m_over": 0.511, "tot_gap": -0.038, "tot_zone": "value", "wind_under": false, "roof": "outdoors"}, {"away": "ATL", "home": "PIT", "date": "2026-09-13", "time": "13:00", "p_home": 0.612, "favorite": "PIT", "fav_prob": 0.612, "confidence": 0.112, "aplus": false, "mkt_home": 0.609, "win_gap": 0.003, "win_zone": "none", "total_line": 42.5, "exp_total": 42.6, "e_over": 0.504, "m_over": 0.5, "tot_gap": 0.004, "tot_zone": "none", "wind_under": false, "roof": "outdoors"}, {"away": "NYJ", "home": "TEN", "date": "2026-09-13", "time": "13:00", "p_home": 0.546, "favorite": "TEN", "fav_prob": 0.546, "confidence": 0.046, "aplus": false, "mkt_home": 0.604, "win_gap": -0.058, "win_zone": "value", "total_line": 39.5, "exp_total": 47.2, "e_over": 0.713, "m_over": 0.5, "tot_gap": 0.213, "tot_zone": "open", "wind_under": false, "roof": "outdoors"}, {"away": "ARI", "home": "LAC", "date": "2026-09-13", "time": "16:25", "p_home": 0.714, "favorite": "LAC", "fav_prob": 0.714, "confidence": 0.214, "aplus": false, "mkt_home": 0.822, "win_gap": -0.108, "win_zone": "open", "total_line": 45.5, "exp_total": 42.8, "e_over": 0.422, "m_over": 0.5, "tot_gap": -0.078, "tot_zone": "value", "wind_under": false, "roof": "dome"}, {"away": "MIA", "home": "LV", "date": "2026-09-13", "time": "16:25", "p_home": 0.421, "favorite": "MIA", "fav_prob": 0.579, "confidence": 0.079, "aplus": false, "mkt_home": 0.609, "win_gap": -0.189, "win_zone": "open", "total_line": 41.5, "exp_total": 39.7, "e_over": 0.447, "m_over": 0.5, "tot_gap": -0.053, "tot_zone": "value", "wind_under": false, "roof": "dome"}, {"away": "GB", "home": "MIN", "date": "2026-09-13", "time": "16:25", "p_home": 0.579, "favorite": "MIN", "fav_prob": 0.579, "confidence": 0.079, "aplus": false, "mkt_home": 0.483, "win_gap": 0.096, "win_zone": "value", "total_line": 44.5, "exp_total": 36.9, "e_over": 0.29, "m_over": 0.5, "tot_gap": -0.21, "tot_zone": "open", "wind_under": false, "roof": "dome"}, {"away": "WAS", "home": "PHI", "date": "2026-09-13", "time": "16:25", "p_home": 0.685, "favorite": "PHI", "fav_prob": 0.685, "confidence": 0.185, "aplus": false, "mkt_home": 0.675, "win_gap": 0.01, "win_zone": "none", "total_line": 46.5, "exp_total": 42.8, "e_over": 0.394, "m_over": 0.5, "tot_gap": -0.106, "tot_zone": "open", "wind_under": false, "roof": "outdoors"}, {"away": "DAL", "home": "NYG", "date": "2026-09-13", "time": "20:20", "p_home": 0.504, "favorite": "NYG", "fav_prob": 0.504, "confidence": 0.004, "aplus": false, "mkt_home": 0.457, "win_gap": 0.047, "win_zone": "value", "total_line": 48.5, "exp_total": 55.2, "e_over": 0.686, "m_over": 0.5, "tot_gap": 0.186, "tot_zone": "open", "wind_under": false, "roof": "outdoors"}, {"away": "DEN", "home": "KC", "date": "2026-09-14", "time": "20:15", "p_home": 0.427, "favorite": "DEN", "fav_prob": 0.573, "confidence": 0.073, "aplus": false, "mkt_home": 0.583, "win_gap": -0.156, "win_zone": "open", "total_line": 42.5, "exp_total": 35.9, "e_over": 0.316, "m_over": 0.5, "tot_gap": -0.184, "tot_zone": "open", "wind_under": false, "roof": "outdoors"}]}, "rankings": {"teams_today": [{"team": "JAX", "win_prob": 0.725, "tier": "Elite"}, {"team": "LAC", "win_prob": 0.714, "tier": "Strong"}, {"team": "DET", "win_prob": 0.707, "tier": "Strong"}, {"team": "PHI", "win_prob": 0.685, "tier": "Strong"}, {"team": "SEA", "win_prob": 0.652, "tier": "Strong"}, {"team": "PIT", "win_prob": 0.612, "tier": "Solid"}, {"team": "MIA", "win_prob": 0.579, "tier": "Solid"}, {"team": "MIN", "win_prob": 0.579, "tier": "Solid"}, {"team": "DEN", "win_prob": 0.573, "tier": "Solid"}, {"team": "CHI", "win_prob": 0.57, "tier": "Solid"}, {"team": "LA", "win_prob": 0.568, "tier": "Weak"}, {"team": "CIN", "win_prob": 0.552, "tier": "Weak"}, {"team": "HOU", "win_prob": 0.547, "tier": "Weak"}, {"team": "TEN", "win_prob": 0.546, "tier": "Weak"}, {"team": "BAL", "win_prob": 0.545, "tier": "Weak"}, {"team": "NYG", "win_prob": 0.504, "tier": "Bottom"}], "games": [{"away": "CLE", "home": "JAX", "favorite": "JAX", "fav_prob": 0.725, "confidence": 0.225, "tier": "Elite"}, {"away": "ARI", "home": "LAC", "favorite": "LAC", "fav_prob": 0.714, "confidence": 0.214, "tier": "Strong"}, {"away": "NO", "home": "DET", "favorite": "DET", "fav_prob": 0.707, "confidence": 0.207, "tier": "Strong"}, {"away": "WAS", "home": "PHI", "favorite": "PHI", "fav_prob": 0.685, "confidence": 0.185, "tier": "Strong"}, {"away": "NE", "home": "SEA", "favorite": "SEA", "fav_prob": 0.652, "confidence": 0.152, "tier": "Strong"}, {"away": "ATL", "home": "PIT", "favorite": "PIT", "fav_prob": 0.612, "confidence": 0.112, "tier": "Solid"}, {"away": "MIA", "home": "LV", "favorite": "MIA", "fav_prob": 0.579, "confidence": 0.079, "tier": "Weak"}, {"away": "GB", "home": "MIN", "favorite": "MIN", "fav_prob": 0.579, "confidence": 0.079, "tier": "Weak"}, {"away": "DEN", "home": "KC", "favorite": "DEN", "fav_prob": 0.573, "confidence": 0.073, "tier": "Weak"}, {"away": "CHI", "home": "CAR", "favorite": "CHI", "fav_prob": 0.57, "confidence": 0.07, "tier": "Weak"}, {"away": "SF", "home": "LA", "favorite": "LA", "fav_prob": 0.568, "confidence": 0.068, "tier": "Weak"}, {"away": "TB", "home": "CIN", "favorite": "CIN", "fav_prob": 0.552, "confidence": 0.052, "tier": "Weak"}, {"away": "BUF", "home": "HOU", "favorite": "HOU", "fav_prob": 0.547, "confidence": 0.047, "tier": "Weak"}, {"away": "NYJ", "home": "TEN", "favorite": "TEN", "fav_prob": 0.546, "confidence": 0.046, "tier": "Weak"}, {"away": "BAL", "home": "IND", "favorite": "BAL", "fav_prob": 0.545, "confidence": 0.045, "tier": "Weak"}, {"away": "DAL", "home": "NYG", "favorite": "NYG", "fav_prob": 0.504, "confidence": 0.004, "tier": "Bottom"}], "elo_power": [{"team": "SEA", "elo": 1646, "tier": "Elite"}, {"team": "BUF", "elo": 1595, "tier": "Elite"}, {"team": "LA", "elo": 1594, "tier": "Elite"}, {"team": "DEN", "elo": 1593, "tier": "Elite"}, {"team": "HOU", "elo": 1588, "tier": "Elite"}, {"team": "NE", "elo": 1578, "tier": "Elite"}, {"team": "PHI", "elo": 1559, "tier": "Strong"}, {"team": "JAX", "elo": 1553, "tier": "Strong"}, {"team": "DET", "elo": 1553, "tier": "Strong"}, {"team": "SF", "elo": 1546, "tier": "Strong"}, {"team": "MIN", "elo": 1542, "tier": "Strong"}, {"team": "BAL", "elo": 1542, "tier": "Strong"}, {"team": "GB", "elo": 1527, "tier": "Strong"}, {"team": "LAC", "elo": 1523, "tier": "Solid"}, {"team": "CHI", "elo": 1520, "tier": "Solid"}, {"team": "PIT", "elo": 1509, "tier": "Solid"}, {"team": "KC", "elo": 1502, "tier": "Solid"}, {"team": "TB", "elo": 1485, "tier": "Weak"}, {"team": "CIN", "elo": 1481, "tier": "Weak"}, {"team": "IND", "elo": 1471, "tier": "Weak"}, {"team": "ATL", "elo": 1470, "tier": "Weak"}, {"team": "WAS", "elo": 1464, "tier": "Weak"}, {"team": "DAL", "elo": 1462, "tier": "Weak"}, {"team": "MIA", "elo": 1462, "tier": "Weak"}, {"team": "NO", "elo": 1440, "tier": "Bottom"}, {"team": "CAR", "elo": 1431, "tier": "Bottom"}, {"team": "NYG", "elo": 1425, "tier": "Bottom"}, {"team": "CLE", "elo": 1425, "tier": "Bottom"}, {"team": "ARI", "elo": 1403, "tier": "Bottom"}, {"team": "NYJ", "elo": 1375, "tier": "Bottom"}, {"team": "LV", "elo": 1367, "tier": "Bottom"}, {"team": "TEN", "elo": 1366, "tier": "Bottom"}], "totals": [{"away": "DAL", "home": "NYG", "exp_total": 55.2, "tier": "Elite"}, {"away": "SF", "home": "LA", "exp_total": 55.1, "tier": "Elite"}, {"away": "BAL", "home": "IND", "exp_total": 53.2, "tier": "Elite"}, {"away": "TB", "home": "CIN", "exp_total": 52.8, "tier": "Elite"}, {"away": "BUF", "home": "HOU", "exp_total": 47.8, "tier": "Strong"}, {"away": "NYJ", "home": "TEN", "exp_total": 47.2, "tier": "Strong"}, {"away": "NO", "home": "DET", "exp_total": 46.9, "tier": "Strong"}, {"away": "CHI", "home": "CAR", "exp_total": 43.8, "tier": "Solid"}, {"away": "ARI", "home": "LAC", "exp_total": 42.8, "tier": "Weak"}, {"away": "WAS", "home": "PHI", "exp_total": 42.8, "tier": "Weak"}, {"away": "ATL", "home": "PIT", "exp_total": 42.6, "tier": "Weak"}, {"away": "NE", "home": "SEA", "exp_total": 41.8, "tier": "Weak"}, {"away": "MIA", "home": "LV", "exp_total": 39.7, "tier": "Bottom"}, {"away": "CLE", "home": "JAX", "exp_total": 39.6, "tier": "Bottom"}, {"away": "GB", "home": "MIN", "exp_total": 36.9, "tier": "Bottom"}, {"away": "DEN", "home": "KC", "exp_total": 35.9, "tier": "Bottom"}], "composite_today": [{"away": "NE", "home": "SEA", "composite": 47.6, "tier": "Elite"}, {"away": "NO", "home": "DET", "composite": 47.6, "tier": "Elite"}, {"away": "WAS", "home": "PHI", "composite": 43.7, "tier": "Elite"}, {"away": "SF", "home": "LA", "composite": 40.1, "tier": "Elite"}, {"away": "CLE", "home": "JAX", "composite": 39.7, "tier": "Strong"}, {"away": "ARI", "home": "LAC", "composite": 39.0, "tier": "Strong"}, {"away": "BUF", "home": "HOU", "composite": 33.6, "tier": "Strong"}, {"away": "ATL", "home": "PIT", "composite": 33.3, "tier": "Solid"}, {"away": "BAL", "home": "IND", "composite": 30.2, "tier": "Solid"}, {"away": "TB", "home": "CIN", "composite": 28.4, "tier": "Solid"}, {"away": "CHI", "home": "CAR", "composite": 27.0, "tier": "Weak"}, {"away": "GB", "home": "MIN", "composite": 25.1, "tier": "Weak"}, {"away": "DEN", "home": "KC", "composite": 24.9, "tier": "Weak"}, {"away": "DAL", "home": "NYG", "composite": 23.6, "tier": "Bottom"}, {"away": "NYJ", "home": "TEN", "composite": 18.1, "tier": "Bottom"}, {"away": "MIA", "home": "LV", "composite": 17.9, "tier": "Bottom"}], "composite_overall": [{"team": "SEA", "composite": 97.4, "elo": 1646, "tier": "Elite"}, {"team": "DEN", "composite": 75.4, "elo": 1593, "tier": "Elite"}, {"team": "HOU", "composite": 72.9, "elo": 1588, "tier": "Elite"}, {"team": "NE", "composite": 72.6, "elo": 1578, "tier": "Elite"}, {"team": "LA", "composite": 72.3, "elo": 1594, "tier": "Elite"}, {"team": "BUF", "composite": 70.0, "elo": 1595, "tier": "Elite"}, {"team": "MIN", "composite": 67.5, "elo": 1542, "tier": "Strong"}, {"team": "JAX", "composite": 66.8, "elo": 1553, "tier": "Strong"}, {"team": "BAL", "composite": 61.4, "elo": 1542, "tier": "Strong"}, {"team": "SF", "composite": 55.5, "elo": 1546, "tier": "Strong"}, {"team": "PHI", "composite": 54.0, "elo": 1559, "tier": "Strong"}, {"team": "DET", "composite": 47.1, "elo": 1553, "tier": "Strong"}, {"team": "CHI", "composite": 46.6, "elo": 1520, "tier": "Solid"}, {"team": "LAC", "composite": 45.7, "elo": 1523, "tier": "Solid"}, {"team": "PIT", "composite": 43.7, "elo": 1509, "tier": "Solid"}, {"team": "CIN", "composite": 39.6, "elo": 1481, "tier": "Weak"}, {"team": "ATL", "composite": 39.5, "elo": 1470, "tier": "Weak"}, {"team": "TB", "composite": 35.2, "elo": 1485, "tier": "Weak"}, {"team": "WAS", "composite": 34.0, "elo": 1464, "tier": "Weak"}, {"team": "GB", "composite": 31.2, "elo": 1527, "tier": "Strong"}, {"team": "IND", "composite": 26.8, "elo": 1471, "tier": "Weak"}, {"team": "KC", "composite": 26.7, "elo": 1502, "tier": "Solid"}, {"team": "NO", "composite": 26.0, "elo": 1440, "tier": "Bottom"}, {"team": "DAL", "composite": 24.0, "elo": 1462, "tier": "Weak"}, {"team": "MIA", "composite": 23.3, "elo": 1462, "tier": "Weak"}, {"team": "CAR", "composite": 18.9, "elo": 1431, "tier": "Bottom"}, {"team": "NYG", "composite": 18.6, "elo": 1425, "tier": "Bottom"}, {"team": "CLE", "composite": 17.9, "elo": 1425, "tier": "Bottom"}, {"team": "TEN", "composite": 17.5, "elo": 1366, "tier": "Bottom"}, {"team": "LV", "composite": 15.3, "elo": 1367, "tier": "Bottom"}, {"team": "ARI", "composite": 13.0, "elo": 1403, "tier": "Bottom"}, {"team": "NYJ", "composite": 12.8, "elo": 1375, "tier": "Bottom"}], "momentum": [{"team": "MIN", "elo_trend": 70.5, "tier": "Elite"}, {"team": "SEA", "elo_trend": 62.4, "tier": "Elite"}, {"team": "ATL", "elo_trend": 50.5, "tier": "Elite"}, {"team": "JAX", "elo_trend": 41.6, "tier": "Elite"}, {"team": "NO", "elo_trend": 39.6, "tier": "Elite"}, {"team": "NYG", "elo_trend": 34.3, "tier": "Elite"}, {"team": "NE", "elo_trend": 33.8, "tier": "Elite"}, {"team": "BAL", "elo_trend": 30.2, "tier": "Elite"}, {"team": "DEN", "elo_trend": 26.0, "tier": "Elite"}, {"team": "CLE", "elo_trend": 23.0, "tier": "Strong"}, {"team": "HOU", "elo_trend": 20.7, "tier": "Strong"}, {"team": "WAS", "elo_trend": 16.8, "tier": "Strong"}, {"team": "TEN", "elo_trend": 14.6, "tier": "Strong"}, {"team": "CIN", "elo_trend": 11.9, "tier": "Strong"}, {"team": "LA", "elo_trend": 10.3, "tier": "Strong"}, {"team": "BUF", "elo_trend": -0.6, "tier": "Solid"}, {"team": "SF", "elo_trend": -8.9, "tier": "Solid"}, {"team": "CAR", "elo_trend": -9.0, "tier": "Solid"}, {"team": "PIT", "elo_trend": -17.9, "tier": "Weak"}, {"team": "CHI", "elo_trend": -18.1, "tier": "Weak"}, {"team": "LV", "elo_trend": -21.5, "tier": "Weak"}, {"team": "LAC", "elo_trend": -25.2, "tier": "Bottom"}, {"team": "TB", "elo_trend": -26.0, "tier": "Bottom"}, {"team": "PHI", "elo_trend": -28.5, "tier": "Bottom"}, {"team": "DET", "elo_trend": -45.8, "tier": "Bottom"}, {"team": "ARI", "elo_trend": -47.9, "tier": "Bottom"}, {"team": "IND", "elo_trend": -48.6, "tier": "Bottom"}, {"team": "NYJ", "elo_trend": -49.9, "tier": "Bottom"}, {"team": "DAL", "elo_trend": -51.1, "tier": "Bottom"}, {"team": "MIA", "elo_trend": -54.5, "tier": "Bottom"}, {"team": "GB", "elo_trend": -82.5, "tier": "Bottom"}, {"team": "KC", "elo_trend": -85.5, "tier": "Bottom"}]}};
+const pct=x=>Math.round(x*100);
+
+function seg(cls,p,label){return p<=0?"":`<div class="seg ${cls}" style="width:${p*100}%">${label?label+" ":""}${pct(p)}%</div>`;}
+function noMkt(){return `<div class="nomkt"><span class="l-en">market not posted yet</span><span class="l-he">השוק טרם פורסם</span></div>`;}
+function zoneLine(zone,gap){
+  const lab={none:{en:"no value",he:"אין ערך"},value:{en:"value",he:"ערך"},open:{en:"open question",he:"שאלה פתוחה"}}[zone];
+  const s=gap>0?"+":"";
+  return `<div class="zone ${zone}"><span class="l-en">gap</span><span class="l-he">פער</span> ${s}${pct(gap)}%<span class="tag"><span class="l-en">${lab.en}</span><span class="l-he">${lab.he}</span></span></div>`;
+}
+function gameCard(g){
+  return `<div class="game ${g.aplus?'ap':''}">
+   <div class="top"><div class="match">${g.away}<span class="at">@</span>${g.home}</div>
+     <div style="display:flex;gap:6px;align-items:center">
+       ${g.aplus?`<span class="badge ap">A+</span>`:''}
+       ${g.wind_under?`<span class="badge wind"><span class="l-en">wind → under</span><span class="l-he">רוח → under</span></span>`:''}
+       <span class="when">${g.date.slice(5)}</span></div></div>
+   <div class="barblock">
+     <div class="barrow"><div class="rl"><span class="l-en">Engine</span><span class="l-he">מנוע</span></div>
+       <div class="bar">${seg('home',g.p_home,g.home)}${seg('away',1-g.p_home,g.away)}</div></div>
+     <div class="barrow"><div class="rl"><span class="l-en">Market</span><span class="l-he">שוק</span></div>
+       ${g.mkt_home==null?noMkt():`<div class="bar market">${seg('home',g.mkt_home,'')}${seg('away',1-g.mkt_home,'')}</div>`}</div>
+     ${g.mkt_home==null?'':zoneLine(g.win_zone,g.win_gap)}</div>
+   <div class="totlab"><span class="l-en">Total</span><span class="l-he">טוטאל</span> <b>${g.total_line}</b></div>
+   <div class="barblock">
+     <div class="barrow"><div class="rl"><span class="l-en">Engine</span><span class="l-he">מנוע</span></div>
+       <div class="bar tot">${seg('over',g.e_over,'Over')}${seg('under',1-g.e_over,'Under')}</div></div>
+     <div class="barrow"><div class="rl"><span class="l-en">Market</span><span class="l-he">שוק</span></div>
+       ${g.m_over==null?noMkt():`<div class="bar tot market">${seg('over',g.m_over,'Over')}${seg('under',1-g.m_over,'Under')}</div>`}</div>
+     ${g.m_over==null?'':zoneLine(g.tot_zone,g.tot_gap)}</div></div>`;
+}
+
+const GUIDE=[
+ {en:["The idea","The engine speaks only on A+ setups — a confident pick whose favorite is also in a strong recent-form stage (the nine-stage cup-and-handle method from trading). Every other game it stays silent. Discipline, not volume."],
+  he:["הרעיון","המנוע מדבר רק על סטאפי A+ — בחירה בטוחה שבה המועדף גם בשלב-טופס חזק (שיטת תשע-השלבים מהמסחר). בכל השאר הוא שותק. משמעת, לא כמות."]},
+ {en:["The two bars","The engine bar is what the model thinks is true; the market bar is the book's price with the vig removed. Where they agree there is no value — and that is fine.","ex"],
+  he:["שני הברים","בר-המנוע הוא מה שהמודל מעריך; בר-השוק הוא מחיר-הבוקי אחרי ניכוי-ה-vig. היכן שהם מסכימים — אין ערך, וזה בסדר.","ex"]},
+ {en:["Read &amp; confidence","A bar like Engine 72% / Market 70% means a 2% gap — the engine and market basically agree, so there is no edge. Confidence is how far the pick sits from a coin-flip."],
+  he:["קריאה וביטחון","בר כמו מנוע 72% / שוק 70% = פער 2% — המנוע והשוק מסכימים, אין יתרון. הביטחון הוא כמה הבחירה רחוקה מהטלת מטבע."]},
+ {en:["The value block &amp; colors","Gap under 3% is gray (no value). 3–10% is green (value — the zone with an explanation). Over 10% is teal (open question: real edge or model error?)."],
+  he:["בלוק-הערך והצבעים","פער מתחת ל-3% אפור (אין ערך). 3–10% ירוק (ערך — האזור שיש לו הסבר). מעל 10% טורקיז (שאלה פתוחה: ערך אמיתי או טעות-מודל?)."]},
+ {en:["Power, momentum, composite","Under Rankings: power tiers from current Elo (Elite to Bottom), the 4-game momentum trend, and a composite blend of winner, Elo, momentum and data quality."],
+  he:["כוח, מומנטום, משולב","תחת דירוגים: רמות-כוח מ-Elo נוכחי (Elite עד Bottom), מגמת-מומנטום על 4 משחקים, ותמהיל משולב של מנצח/Elo/מומנטום/איכות."]},
+ {en:["CLV is the arbiter","Gap size is not the answer — whether there is an explanation is. The clean test of edge is closing-line value: did the engine's side get a better price than the close?"],
+  he:["CLV הוא הארביטר","גודל-הפער אינו התשובה — האם יש הסבר הוא התשובה. המבחן הנקי ליתרון הוא ערך-קו-הסגירה."]},
+ {en:["Forward-only","Every result shown was predicted before the game. The track record accumulates forward; nothing is backfilled."],
+  he:["קדימה בלבד","כל תוצאה נובאה לפני המשחק. רשומת-ההצלחה נצברת קדימה; שום דבר אינו ממולא-בדיעבד."]}
+];
+function exampleCard(){
+  return `<div class="excard"><span class="l-en"><b>SEA vs NE</b> — Engine 65% / Market 64%. Gap 1% → gray, no value. The engine agrees with the price, so it stays quiet.</span>
+   <span class="l-he"><b>SEA מול NE</b> — מנוע 65% / שוק 64%. פער 1% → אפור, אין ערך. המנוע מסכים עם המחיר, אז הוא שותק.</span></div>`;
+}
+
+function render(){
+  document.getElementById("src").textContent=DATA.meta.source;
+  document.getElementById("accAll").textContent=DATA.meta.accuracy_overall+"%";
+  document.getElementById("accAp").textContent=DATA.meta.accuracy_aplus+"%";
+  if(DATA.state==="preseason"){
+    document.getElementById("banner").innerHTML=
+     `<div><div class="lbl"><span class="l-en">State</span><span class="l-he">מצב</span></div>
+      <div class="big"><span class="l-en">Season kicks off</span><span class="l-he">פתיחת העונה</span></div></div>
+      <div class="when">${DATA.next.date} · Week ${DATA.next.week}</div>`;
+  }
+  const ap=DATA.week.games.filter(g=>g.aplus);
+  let hero=`<div class="hero-lab"><span class="l-en">The A+ call</span><span class="l-he">קריאת ה-A+</span></div>`;
+  hero+= ap.length? ap.map(gameCard).join("")
+       : `<div class="game"><div class="match" style="color:var(--faint)"><span class="l-en">No A+ setup this week. The engine stays silent.</span><span class="l-he">אין סטאפ A+ השבוע. המנוע שותק.</span></div></div>`;
+  hero+=`<div class="silent"><span class="l-en">Every other game: the engine stays silent.</span><span class="l-he">כל שאר המשחקים: המנוע שותק.</span></div>`;
+  document.getElementById("hero").innerHTML=hero;
+  document.getElementById("slate").innerHTML=DATA.week.games.map(gameCard).join("");
+
+  renderCubes();
+
+  document.getElementById("caveat").innerHTML=
+   `<span class="l-en"><b>Honest note.</b> Overall accuracy (64.6%) sits just under the market's straight-up pick rate (~66%); the value is selectivity and closing-line value, never out-picking the line. The wind→under flag is thin and forecast-gated. Totals value is not yet proven vs market; forward CLV is the arbiter.</span>
+    <span class="l-he"><b>הערת יושר.</b> הדיוק הכללי (64.6%) מעט מתחת לבחירת-השוק (~66%); הערך הוא סלקטיביות ו-CLV. דגל-הרוח דק וגדור-תחזית. ערך-הטוטאל טרם-הוכח; CLV-קדימה מכריע.</span>`;
+
+  // guide body
+  document.getElementById("guideBody").innerHTML=GUIDE.map((s,i)=>{
+    const ex=s.en[2]==="ex"?exampleCard():"";
+    return `<div class="sec"><div class="num"><i>0${i+1}</i><span class="l-en">${s.en[0]}</span><span class="l-he">${s.he[0]}</span></div>
+      <p><span class="l-en">${s.en[1]}</span><span class="l-he">${s.he[1]}</span></p>${ex}</div>`;
+  }).join("");
+}
+const TIERS=["Elite","Strong","Solid","Weak","Bottom"];
+const TIERLAB={Elite:{en:"Elite",he:"עלית"},Strong:{en:"Strong",he:"חזקים"},Solid:{en:"Solid",he:"מבוססים"},Weak:{en:"Weak",he:"חלשים"},Bottom:{en:"Bottom",he:"תחתית"}};
+// each cube: key, title, explanation, row formatter -> {label, value}
+const RANKDEFS=[
+ {k:"teams_today",t:{en:"Teams this week — by engine",he:"קבוצות-היום — לפי מנוע"},
+  x:{en:"This week's teams ranked by the engine's win probability (the favorite's chance in each game).",he:"קבוצות-השבוע לפי הסתברות-הניצחון של המנוע (סיכוי המועדף בכל משחק)."},
+  f:x=>({l:x.team,v:pct(x.win_prob)+"%"})},
+ {k:"games",t:{en:"Games — by confidence",he:"משחקים — לפי ביטחון"},
+  x:{en:"This week's games from the most lopsided to the closest, by how far the pick sits from a coin-flip.",he:"משחקי-השבוע מהחד-משמעי לצמוד, לפי כמה הבחירה רחוקה מהטלת-מטבע."},
+  f:g=>({l:`${g.away} @ ${g.home}`,v:`${g.favorite} ${pct(g.fav_prob)}%`})},
+ {k:"composite_today",t:{en:"Composite — today",he:"ציון-משולב — היום"},
+  x:{en:"This week's games blended on four axes (winner 40%, Elo 30%, total 20%, data 10%), geometric mean. Tiers are this week's quintiles.",he:"משחקי-השבוע משוקללים בארבעה צירים (מנצח 40%, Elo 30%, טוטאל 20%, נתונים 10%), ממוצע גאומטרי. הרמות הן חמישוני-השבוע."},
+  f:g=>({l:`${g.away} @ ${g.home}`,v:g.composite})},
+ {k:"composite_overall",t:{en:"Composite — day-independent",he:"דירוג-משולב — בלתי-תלוי-יום"},
+  x:{en:"All 32 teams blended regardless of who plays this week: Elo strength (70%) with recent trend (30%), geometric mean.",he:"כל 32 הקבוצות, בלי קשר למי משחק השבוע: חוזק-Elo (70%) עם מגמה-אחרונה (30%), ממוצע גאומטרי."},
+  f:x=>({l:x.team,v:x.composite})},
+ {k:"elo_power",t:{en:"Power — Elo",he:"כוח-כללי — Elo"},
+  x:{en:"All 32 teams by current Elo rating, independent of the schedule. The raw strength table.",he:"כל 32 הקבוצות לפי דירוג-Elo נוכחי, בלי תלות בלוח. טבלת-הכוח הגולמית."},
+  f:x=>({l:x.team,v:x.elo})},
+ {k:"totals",t:{en:"Totals — expected points",he:"טוטאל — נקודות צפויות"},
+  x:{en:"This week's games by expected combined points, highest-scoring first.",he:"משחקי-השבוע לפי סך-הנקודות הצפוי, מהגבוה ביותר."},
+  f:g=>({l:`${g.away} @ ${g.home}`,v:g.exp_total})},
+ {k:"momentum",t:{en:"Momentum",he:"מומנטום"},
+  x:{en:"Teams by Elo trend over the last 4 games — who is rising and who is fading.",he:"קבוצות לפי מגמת-Elo על 4 המשחקים האחרונים — מי עולה ומי דועך."},
+  f:x=>({l:x.team,v:`<span class="${x.elo_trend>=0?'up':'dn'}">${x.elo_trend>=0?'+':''}${x.elo_trend}</span>`})},
+];
+function renderCubes(){
+  const html=RANKDEFS.map(d=>{
+    const rows=DATA.rankings[d.k]||[];
+    let n=0,groups="";
+    TIERS.forEach(tn=>{
+      const inTier=rows.filter(r=>r.tier===tn);
+      if(!inTier.length)return;
+      const lab=TIERLAB[tn];
+      groups+=`<div class="tier-group"><div class="tier-lab ${tn}"><span class="l-en">${lab.en}</span><span class="l-he">${lab.he}</span></div><div class="tier-rows">`+
+        inTier.map(r=>{const o=d.f(r);n++;return `<div class="crow"><span class="n">${n}</span><span class="t">${o.l}</span><span class="v">${o.v}</span></div>`;}).join("")+`</div></div>`;
+    });
+    return `<div class="cube"><div class="cube-h"><span class="l-en">${d.t.en}</span><span class="l-he">${d.t.he}</span></div>
+      <div class="cube-x"><span class="l-en">${d.x.en}</span><span class="l-he">${d.x.he}</span></div>${groups}</div>`;
+  }).join("");
+  document.getElementById("cubes").innerHTML=html;
+}
+
+// language
+function setLang(l){document.documentElement.lang=l;document.documentElement.dir=l==="he"?"rtl":"ltr";
+  document.getElementById("lang").textContent=l==="he"?"English":"עברית";}
+document.getElementById("lang").onclick=()=>setLang(document.documentElement.lang==="en"?"he":"en");
+// modals
+function openM(id){document.getElementById(id).classList.add("open");document.body.style.overflow="hidden";}
+function closeM(id){document.getElementById(id).classList.remove("open");document.body.style.overflow="";}
+document.getElementById("howtoBtn").onclick=()=>openM("guideModal");
+document.getElementById("guideX").onclick=()=>closeM("guideModal");
+document.getElementById("discBtn").onclick=()=>openM("discModal");
+document.getElementById("discBtn2").onclick=()=>openM("discModal");
+document.getElementById("discX").onclick=()=>closeM("discModal");
+document.querySelectorAll(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)closeM(m.id);});
+document.addEventListener("keydown",e=>{if(e.key==='Escape'){closeM("guideModal");closeM("discModal");}});
+// rankings + scroll
+document.getElementById("rankToggle").onclick=function(){const w=document.getElementById("rankWrap");
+  const open=w.classList.toggle("hide")===false;this.setAttribute("aria-expanded",open);};
+window.onscroll=()=>document.getElementById("toTop").classList.toggle("show",window.scrollY>400);
+document.getElementById("toTop").onclick=()=>window.scrollTo({top:0,behavior:"smooth"});
+// date
+document.getElementById("todayChip").onclick=()=>{document.querySelectorAll(".datebar .chip").forEach(c=>c.classList.remove("on"));};
+setLang("en");render();
+</script>
+<script data-goatcounter="https://nfl613.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
